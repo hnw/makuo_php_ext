@@ -32,7 +32,11 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_makuo.h"
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
 #include "ext/standard/php_smart_str.h"
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+#include "ext/standard/php_smart_string.h"
+#endif
 #include "main/snprintf.h"
 
 /* If you declare any globals in php_makuo.h uncomment this:
@@ -248,8 +252,14 @@ int wait_prompt(int s, char* std_out, int std_out_size, char* std_err,
 
 static inline
 void close_socket_if_not_closed(zval *obj TSRMLS_DC) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
                                        strlen("socket_"), 1 TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval rv;
+    zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
+                                       strlen("socket_"), 1, &rv TSRMLS_CC);
+#endif
     if (socket_->value.lval != -1) {
         close(socket_->value.lval);
         socket_->value.lval = -1;
@@ -266,8 +276,14 @@ int do_command(zval *obj, const char* message, char* std_out, int std_out_size,
         end_tv = &tv;
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
                                        strlen("socket_"), 1 TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval rv;
+    zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
+                                       strlen("socket_"), 1, &rv TSRMLS_CC);
+#endif
     int s = socket_->value.lval;
     if (s == -1) {
         /* not connected yet */
@@ -367,29 +383,53 @@ int set_socket_timeout(int sock, const struct timeval* end_tv) {
  */
 static inline
 void set_socket(zval *obj, int sock TSRMLS_DC) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
                                        sizeof("socket_") - 1, 1 TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval rv;
+    zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
+                                       sizeof("socket_") - 1, 1, &rv TSRMLS_CC);
+#endif
     socket_->value.lval = sock;
 }
 
 static inline
 int get_socket(zval *obj, int sock TSRMLS_DC) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
                                        sizeof("socket_") - 1, 1 TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval rv;
+    zval *socket_ = zend_read_property(Z_OBJCE_P(obj), obj, "socket_",
+                                       sizeof("socket_") - 1, 1, &rv TSRMLS_CC);
+#endif
     return socket_->value.lval;
 }
 
 static inline
 void set_rcv_timeout(zval *obj, int timeout TSRMLS_DC) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *timeout_ = zend_read_property(Z_OBJCE_P(obj), obj, "rcv_timeout_",
                                         sizeof("rcv_timeout_") - 1, 1 TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval rv;
+    zval *timeout_ = zend_read_property(Z_OBJCE_P(obj), obj, "rcv_timeout_",
+                                        sizeof("rcv_timeout_") - 1, 1, &rv TSRMLS_CC);
+#endif
     timeout_->value.lval = timeout;
 }
 
 static inline
 int get_rcv_timeout(zval *obj TSRMLS_DC) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *timeout_ = zend_read_property(Z_OBJCE_P(obj), obj, "rcv_timeout_",
                                         sizeof("rcv_timeout_") - 1, 1 TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval rv;
+    zval *timeout_ = zend_read_property(Z_OBJCE_P(obj), obj, "rcv_timeout_",
+                                        sizeof("rcv_timeout_") - 1, 1, &rv TSRMLS_CC);
+#endif
     return timeout_->value.lval;
 }
 
@@ -401,35 +441,73 @@ void set_error(zval *obj, const char* error_msg TSRMLS_DC) {
 
 static inline
 void set_options(char* mopt, int mopt_size, zval* options) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval **v;
     if (zend_hash_find(Z_ARRVAL_P(options), RECURSIVE, sizeof(RECURSIVE), (void**)&v) == SUCCESS) {
         convert_to_long_ex(v);
         if (Z_LVAL_PP(v)) {
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval *v;
+    zend_string *zs_recursive = zend_string_init(RECURSIVE, strlen(RECURSIVE), 0);
+    zend_string *zs_dryrun = zend_string_init(DRYRUN, strlen(DRYRUN), 0);
+    zend_string *zs_target_host = zend_string_init(TARGET_HOST, strlen(TARGET_HOST), 0);
+    if ((v = zend_hash_find(Z_ARRVAL_P(options), zs_recursive)) != NULL) {
+        convert_to_long_ex(v); // add by hnw
+        if (Z_LVAL_P(v)) {
+#endif
             strncat(mopt, " -r", mopt_size);
         }
     }
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     if (zend_hash_find(Z_ARRVAL_P(options), DRYRUN, sizeof(DRYRUN), (void**)&v) == SUCCESS) {
         convert_to_long_ex(v);
         if (Z_LVAL_PP(v)) {
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zend_string_release(zs_recursive);
+    if ((v = zend_hash_find(Z_ARRVAL_P(options), zs_dryrun)) != NULL) {
+        convert_to_long_ex(v); // add by hnw
+        if (Z_LVAL_P(v)) {
+#endif
             strncat(mopt, " -n", mopt_size);
         }
     }
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     if (zend_hash_find(Z_ARRVAL_P(options), TARGET_HOST, sizeof(TARGET_HOST), (void**)&v) == SUCCESS &&
         Z_TYPE_PP(v) == IS_STRING) {
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zend_string_release(zs_dryrun);
+    if (((v = zend_hash_find(Z_ARRVAL_P(options), zs_target_host)) != NULL) &&
+        Z_TYPE_P(v) == IS_STRING) {
+#endif
         strncat(mopt, " -t ", mopt_size);
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
         strncat(mopt, Z_STRVAL_PP(v), mopt_size);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+        strncat(mopt, Z_STRVAL_P(v), mopt_size);
+#endif
     }
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
+    zend_string_release(zs_target_host);
+#endif
 }
 
 static void makuo_send(INTERNAL_FUNCTION_PARAMETERS, const char* command) {
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
     char *path;
     int path_len;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zend_string *path;
+#endif
     char buff[kMaxSendBuffSize];
     zval *options = NULL;
     char mopt[256];
     char std_err[kMaxReadBuffSize];
 
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|a!", &path, &path_len, &options) == FAILURE) {
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S|a!", &path, &options) == FAILURE) {
+#endif
         RETURN_FALSE;
     }
 
@@ -443,10 +521,19 @@ static void makuo_send(INTERNAL_FUNCTION_PARAMETERS, const char* command) {
     gettimeofday(&end_tv, NULL);
     end_tv.tv_sec += get_rcv_timeout(getThis() TSRMLS_CC);
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval **v;
     if (options && zend_hash_find(Z_ARRVAL_P(options), DELETE, sizeof(DELETE), (void**)&v) == SUCCESS) {
         convert_to_long_ex(v);
         if (Z_LVAL_PP(v)) {
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval *v;
+    if (options) {
+        zend_string *zs_delete = zend_string_init(DELETE, strlen(DELETE), 0);
+        v = zend_hash_find(Z_ARRVAL_P(options), zs_delete);
+        zend_string_release(zs_delete);
+        if (v && Z_LVAL_P(v)) {
+#endif
             /* do dsync */
 
             if (ap_php_snprintf(buff, sizeof(buff), "dsync%s %s\r\n", mopt, path) >= sizeof(buff)) {
@@ -494,11 +581,21 @@ PHP_METHOD(makuo, __construct) {
     }
 
     if (options) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
         zval **v;
         if (zend_hash_find(Z_ARRVAL_P(options), RCV_TIMEOUT, sizeof(RCV_TIMEOUT), (void**)&v) == SUCCESS) {
             convert_to_long_ex(v);
             set_rcv_timeout(getThis(), Z_LVAL_PP(v) TSRMLS_CC);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+        zval *v;
+        zend_string *zs_rcv_timeout = zend_string_init(RCV_TIMEOUT, strlen(RCV_TIMEOUT), 0);
+        if ((v = zend_hash_find(Z_ARRVAL_P(options), zs_rcv_timeout)) != NULL) {
+            set_rcv_timeout(getThis(), Z_LVAL_P(v) TSRMLS_CC);
+#endif
         }
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
+        zend_string_release(zs_rcv_timeout);
+#endif
     }
 }
 /* }}} */
@@ -534,12 +631,20 @@ PHP_METHOD(makuo, sync) {
 /* {{{ proto mixed Makuosan::status()
    */
 PHP_METHOD(makuo, status) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *ret;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval ret;
+#endif
     char buff[kMaxReadBuffSize];
 
     /* initialize array */
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     MAKE_STD_ZVAL(ret);
     array_init(ret);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    array_init(&ret);
+#endif
 
     /* request status string */
     memset(buff, 0, sizeof(buff));
@@ -558,25 +663,41 @@ PHP_METHOD(makuo, status) {
             *pos = '\0';
             char* key = p;
             char* val = pos + 2;
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
             add_assoc_string(ret, key, val, 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+            add_assoc_string(&ret, key, val);
+#endif
         }
         p = strtok_r(NULL, "\r\n", &saveptr);
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     RETURN_ZVAL(ret, 0, 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    RETURN_ZVAL(&ret, 0, 1);
+#endif
 }
 /* }}} */
 
 /* {{{ proto mixed Makuosan::members()
    */
 PHP_METHOD(makuo, members) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *ret;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval ret;
+#endif
     char buff[kMaxReadBuffSize];
     char address[64];
 
     /* initialize array */
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     MAKE_STD_ZVAL(ret);
     array_init(ret);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    array_init(&ret);
+#endif
 
     /* request status string */
     memset(buff, 0, sizeof(buff));
@@ -591,23 +712,39 @@ PHP_METHOD(makuo, members) {
     char* p = strtok_r(buff, "\r\n", &saveptr);
     while (p && memcmp(p, "Total:", 6)) {
         sscanf(p, " %*s %s ", address);
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
         add_next_index_stringl(ret, address, strlen(address), 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+        add_next_index_stringl(&ret, address, strlen(address));
+#endif
         p = strtok_r(NULL, "\r\n", &saveptr);
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     RETURN_ZVAL(ret, 0, 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    RETURN_ZVAL(&ret, 0, 1);
+#endif
 }
 /* }}} */
 
 /* {{{ proto mixed Makuosan::check()
    */
 PHP_METHOD(makuo, check) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *ret;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval ret;
+#endif
     char buff[kMaxReadBuffSize];
 
     /* initialize array */
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     MAKE_STD_ZVAL(ret);
     array_init(ret);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    array_init(&ret);
+#endif
 
     /* request status string */
     memset(buff, 0, sizeof(buff));
@@ -621,11 +758,19 @@ PHP_METHOD(makuo, check) {
     char* saveptr;
     char* p = strtok_r(buff, "\r\n", &saveptr);
     while (p) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
         add_next_index_stringl(ret, p, strlen(p), 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+        add_next_index_stringl(&ret, p, strlen(p));
+#endif
         p = strtok_r(NULL, "\r\n", &saveptr);
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     RETURN_ZVAL(ret, 0, 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    RETURN_ZVAL(&ret, 0, 1);
+#endif
 }
 /* }}} */
 
@@ -641,9 +786,16 @@ PHP_METHOD(makuo, exclude_add) {
 
     if (paths) {
         const HashTable* ht = Z_ARRVAL_P(paths);
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
         const Bucket* p = ht->pListHead;
         for (; p; p = p->pListNext) {
             const zval* z = *((zval**)p->pData);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+        const Bucket* p = ht->arData;
+        int htindex;
+        for (htindex = 0; htindex < ht->nTableSize-1; htindex++) {
+            const zval* z = &(p[htindex].val);
+#endif
             if (Z_TYPE_P(z) != IS_STRING) continue;
             if (ap_php_snprintf(buff, sizeof(buff), "exclude add %s\r\n", Z_STRVAL_P(z)) >= sizeof(buff)) {
                 set_error(getThis(), ERROR_TOOLONGPARAM TSRMLS_CC);
@@ -663,15 +815,27 @@ PHP_METHOD(makuo, exclude_add) {
 /* {{{ proto bool Makuosan::exclude_del(string path)
    */
 PHP_METHOD(makuo, exclude_del) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     char *path;
     int path_len;
+#else
+    zend_string *path;
+#endif
     char buff[kMaxSendBuffSize];
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &path, &path_len) == FAILURE) {
+#else
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &path) == FAILURE) {
+#endif
         RETURN_FALSE;
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     if (ap_php_snprintf(buff, sizeof(buff), "exclude del %s\r\n", path) >= sizeof(buff)) {
+#else
+    if (ap_php_snprintf(buff, sizeof(buff), "exclude del %s\r\n", ZSTR_VAL(path)) >= sizeof(buff)) {
+#endif
         /* too long */
         set_error(getThis(), ERROR_TOOLONGPARAM TSRMLS_CC);
         RETURN_FALSE;
@@ -690,12 +854,20 @@ PHP_METHOD(makuo, exclude_del) {
 /* {{{ proto mixed Makuosan::exclude_list()
    */
 PHP_METHOD(makuo, exclude_list) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     zval *ret;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zval ret;
+#endif
     char buff[kMaxReadBuffSize];
 
     /* initialize array */
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     MAKE_STD_ZVAL(ret);
     array_init(ret);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    array_init(&ret);
+#endif
 
     /* request status string */
     memset(buff, 0, sizeof(buff));
@@ -709,11 +881,19 @@ PHP_METHOD(makuo, exclude_list) {
     char* saveptr;
     char* p = strtok_r(buff, "\r\n", &saveptr);
     while (p) {
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
         add_next_index_stringl(ret, p, strlen(p), 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+        add_next_index_stringl(&ret, p, strlen(p));
+#endif
         p = strtok_r(NULL, "\r\n", &saveptr);
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     RETURN_ZVAL(ret, 0, 1);
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    RETURN_ZVAL(&ret, 0, 1);
+#endif
 }
 /* }}} */
 
@@ -735,13 +915,35 @@ PHP_METHOD(makuo, exclude_clear) {
 PHP_METHOD(makuo, connect_tcp) {
     /* default parameters */
     const char *host = "127.0.0.1";
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     int host_len = strlen(host);
     int port = 5000;
     int timeout = kDefaultConTimeout;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zend_string *zs_localhost = zend_string_init(host, sizeof(host) + 1, 0);
+    zend_string *zs_host;
+    size_t host_len;
+    zend_long port = 5000;
+    zend_long timeout = kDefaultConTimeout;
+#endif
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|sll", &host, &host_len, &port, &timeout) == FAILURE) {
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|Sll", &zs_host, &port, &timeout) == FAILURE) {
+        zend_string_release(zs_localhost);
+#endif
         RETURN_FALSE;
     }
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
+    if (zs_host) {
+       host = ZSTR_VAL(zs_host);
+       host_len = ZSTR_LEN(zs_host);
+    } else {
+       host = ZSTR_VAL(zs_localhost);
+       host_len = ZSTR_LEN(zs_localhost);
+    }
+#endif
 
     struct timeval connect_end_tv;
     gettimeofday(&connect_end_tv, NULL);
@@ -798,9 +1000,15 @@ PHP_METHOD(makuo, connect_tcp) {
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (void *)&org_rcv_tv, sizeof(org_rcv_tv));
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (void *)&org_snd_tv, sizeof(org_snd_tv));
 
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
+    zend_string_release(zs_localhost);
+#endif
     RETURN_TRUE;
 
  bail:
+#if ZEND_EXTENSION_API_NO >= ZEND_EXTENSION_API_NO_7_0_X
+    zend_string_release(zs_localhost);
+#endif
     close_socket_if_not_closed(getThis() TSRMLS_CC);
     RETURN_FALSE;
 }
@@ -810,11 +1018,19 @@ PHP_METHOD(makuo, connect_tcp) {
    */
 PHP_METHOD(makuo, connect_unix) {
     /* default parameters */
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     char *path;
     int path_len;
+#else /* ZEND_EXTENSION_API_NO_7_0_X */
+    zend_string *path;
+#endif
     int timeout = kDefaultConTimeout;
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|l", &path, &path_len, &timeout) == FAILURE) {
+#else
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S|l", &path, &timeout) == FAILURE) {
+#endif
         RETURN_FALSE;
     }
 
@@ -841,7 +1057,11 @@ PHP_METHOD(makuo, connect_unix) {
         goto bail;
     }
 
+#if ZEND_EXTENSION_API_NO < ZEND_EXTENSION_API_NO_7_0_X
     int c = connect_socket_unix(s, path);
+#else
+    int c = connect_socket_unix(s, ZSTR_VAL(path));
+#endif
     if (c == -1) {
         /* invalid path */
         set_error(getThis(), ERROR_INVALIDHOST TSRMLS_CC);
